@@ -17,3 +17,6 @@ class Connection:
 
     def __hash__(self):
         return int.from_bytes(hashlib.sha256(str(self).encode()).digest(), byteorder="little")
+
+    def set_admin(self, admin: bool):
+        self.isAdmin = admin

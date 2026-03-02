@@ -4,7 +4,32 @@ import json
 
 class Protocol:
 
-    KICK = b"KICK"
+
+    HANDSHAKE = "HANDSHAKE"
+    SEND_MSG = "SEND_MSG"
+    APPOINT_MANAGER = "APPOINT_MANAGER"
+    DEMOTE_MANAGER = "DEMOTE_MANAGER"
+    BROADCAST = "BROADCAST"
+
+    @staticmethod
+    def parse_command(cmd: str):
+        l = [""]
+        i = 0
+        cmd_index = 0
+        opened_quotes = False
+        while len(cmd) > cmd_index:
+            if cmd[cmd_index] == " " and not opened_quotes:
+                i += 1
+                l.append("")
+                cmd_index += 1
+                continue
+            if cmd[cmd_index] in ["'", '"']:
+                opened_quotes = not opened_quotes
+                cmd_index += 1
+                continue
+            l[i] += cmd[cmd_index]
+            cmd_index += 1
+        return l
 
     @staticmethod
     def create_msg(data: bytes) -> bytes:
@@ -68,7 +93,7 @@ class Protocol:
     def broadcast(msg, clients: set):
         for client in clients:
             try:
-                Protocol.send_command(client.soc, MSG=msg, COMMAND="BROADCAST")
+                Protocol.send_command(client.soc, MSG=msg, COMMAND=Protocol.BROADCAST)
                 print("sending")
             except Exception as e:
                 print(e)

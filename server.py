@@ -16,6 +16,9 @@ class Server:
 
         self.managers = set(self.managers)
         self.connections = set()
+        self.bad_words = []
+        with open("BANNED_WORDS", "r") as f:
+            self.bad_words = f.read().split("\n")
 
         # setting up connections
         try:
@@ -38,10 +41,18 @@ class Server:
         except Exception as e:
             print(e)
 
+    def get_connection_by_id(self, id: str):
+        r = None
+        for con in self.connections:
+            if con.userID == id:
+                r = con
+                break
+        return r
+
     @staticmethod
     def handshake(conn):
         data = Protocol.recv_command(conn)
-        assert data["COMMAND"] == "HANDSHAKE"
+        assert data["COMMAND"] == Protocol.HANDSHAKE
         assert "ID" in data
         return data
 
@@ -61,7 +72,14 @@ class Server:
                 try:
                     data = Protocol.recv_command(conn)
                     command = data["COMMAND"]
-                    if command == "SEND_MSG":
+                    data["MSG"]: str
+                    if command == Protocol.SEND_MSG:
+                        hasBadWord = False
+                        for word in self.bad_words:
+                            if word in data["MSG"]:
+                                hasBadWord = True
+                                break
+                        if hasBadWord: continue
                         now = datetime.now()
                         time_now = now.strftime("%H:%M")
                         msg = time_now + " "
@@ -69,7 +87,16 @@ class Server:
                             msg += "@"
                         msg += conn_client.userID + ": " + data["MSG"]
                         Protocol.broadcast(msg, self.connections)
-
+                    if command == Protocol.APPOINT_MANAGER:
+                        if not conn_client.isAdmin: continue
+                        user = self.get_connection_by_id(data["USERID"])
+                        if user is None: continue
+                        user.set_admin(True)
+                    if command == Protocol.DEMOTE_MANAGER:
+                        if not conn_client.isAdmin: continue
+                        user = self.get_connection_by_id(data["USERID"])
+                        if user is None: continue
+                        user.set_admin(False)
 
                 except ConnectionError as e:
                     self.close_connection(conn_client)
