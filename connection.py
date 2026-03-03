@@ -20,3 +20,6 @@ class Connection:
 
     def set_admin(self, admin: bool):
         self.isAdmin = admin
+
+    def mute(self, silent: bool):
+        self.isMuted = silent

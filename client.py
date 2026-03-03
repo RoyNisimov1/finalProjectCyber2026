@@ -1,4 +1,6 @@
 import socket
+from tkinter.constants import COMMAND
+
 from server import Server
 from protocol import Protocol
 from threading import Thread
@@ -23,9 +25,18 @@ class Client:
                     if parsed_data[0] in ["AM", "APPOINT_MANAGER"]:
                         userID = parsed_data[1]
                         Protocol.send_command(self.sock, COMMAND=Protocol.APPOINT_MANAGER, USERID=userID)
-                        if parsed_data[0] in ["DM", "DEMOTE_MANAGER"]:
-                            userID = parsed_data[1]
-                            Protocol.send_command(self.sock, COMMAND=Protocol.DEMOTE_MANAGER, USERID=userID)
+                    if parsed_data[0] in ["DM", "DEMOTE_MANAGER"]:
+                        userID = parsed_data[1]
+                        Protocol.send_command(self.sock, COMMAND=Protocol.DEMOTE_MANAGER, USERID=userID)
+                    if parsed_data[0] in ["MT", "MUTE"]:
+                        userID = parsed_data[1]
+                        Protocol.send_command(self.sock, COMMAND=Protocol.MUTE, USERID=userID)
+                    if parsed_data[0] in ["UMT", "UNMUTE"]:
+                        userID = parsed_data[1]
+                        Protocol.send_command(self.sock, COMMAND=Protocol.UNMUTE, USERID=userID)
+                    if parsed_data[0] in ["GIDEON"]:
+                        prompt = " ".join(parsed_data[1:])
+                        Protocol.send_command(self.sock, COMMAND=Protocol.GIDEON, PROMPT = prompt)
                 except Exception as e:
                     ...
     def listen(self):
@@ -33,11 +44,14 @@ class Client:
             try:
                 data = Protocol.recv_command(self.sock)
                 if data["COMMAND"] == Protocol.BROADCAST:
-                    GREEN = '\033[32m'
-                    RESET = '\033[0m'
-                    print(GREEN)
+                    print(Protocol.GREEN)
                     print("\n" + data["MSG"])
-                    print(RESET)
+                    print(Protocol.RESET)
+
+                if data["COMMAND"] == Protocol.PRIVATE:
+                    print(Protocol.RED)
+                    print("\n" + data["MSG"])
+                    print(Protocol.RESET)
             except ConnectionError:
                 return
             except Exception:

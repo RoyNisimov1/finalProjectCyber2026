@@ -3,12 +3,16 @@ from threading import Thread
 from connection import Connection
 from protocol import Protocol
 from datetime import datetime
+from Gemini import GideonGeminiBackEnd
 
 
 class Server:
     PORT = 6767
 
     def __init__(self):
+        # setting up the AI
+        self.GIDEON = GideonGeminiBackEnd()
+
         # setting up managers
         self.managers = []
         with open("MANAGER_LIST.txt", "r") as f:
@@ -74,6 +78,8 @@ class Server:
                     command = data["COMMAND"]
                     data["MSG"]: str
                     if command == Protocol.SEND_MSG:
+                        if conn_client.isMuted:
+                            continue
                         hasBadWord = False
                         for word in self.bad_words:
                             if word in data["MSG"]:
@@ -97,6 +103,24 @@ class Server:
                         user = self.get_connection_by_id(data["USERID"])
                         if user is None: continue
                         user.set_admin(False)
+                    if command == Protocol.MUTE:
+                        if not conn_client.isAdmin: continue
+                        user = self.get_connection_by_id(data["USERID"])
+                        if user is None: continue
+                        user.mute(True)
+                    if command == Protocol.UNMUTE:
+                        if not conn_client.isAdmin: continue
+                        user = self.get_connection_by_id(data["USERID"])
+                        if user is None: continue
+                        user.mute(False)
+                    if command == Protocol.GIDEON:
+                        prompt = data["PROMPT"]
+                        response_ai = self.GIDEON.prompt(prompt)
+                        Protocol.send_command(conn_client.soc, COMMAND=Protocol.PRIVATE, MSG = response_ai)
+
+
+
+
 
                 except ConnectionError as e:
                     self.close_connection(conn_client)

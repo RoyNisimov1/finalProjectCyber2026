@@ -3,13 +3,22 @@ import socket
 import json
 
 class Protocol:
+    #Color terminal Codes
+    GREEN = '\033[32m'
+    RED = '\033[31m'
+    RESET = '\033[0m'
 
-
+    #Protocol codes
     HANDSHAKE = "HANDSHAKE"
     SEND_MSG = "SEND_MSG"
     APPOINT_MANAGER = "APPOINT_MANAGER"
     DEMOTE_MANAGER = "DEMOTE_MANAGER"
+    MUTE = "MUTE"
+    UNMUTE = "UNMUTE"
     BROADCAST = "BROADCAST"
+    PRIVATE = "PRIVATE"
+    GIDEON = "GIDEON"
+
 
     @staticmethod
     def parse_command(cmd: str):
