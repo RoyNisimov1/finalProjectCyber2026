@@ -5,7 +5,7 @@ from google import genai
 class GideonGeminiBackEnd:
     def __init__(self):
         # Load your .env file
-        load_dotenv(dotenv_path=".env")
+        load_dotenv()
 
         # The client automatically picks up GOOGLE_API_KEY from the environment
         self.client = genai.Client()

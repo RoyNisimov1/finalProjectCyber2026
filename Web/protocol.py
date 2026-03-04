@@ -17,6 +17,7 @@ class Protocol:
     UNMUTE = "UNMUTE"
     BROADCAST = "BROADCAST"
     PRIVATE = "PRIVATE"
+    KICK = "KICK"
     GIDEON = "GIDEON"
 
 
@@ -103,7 +104,6 @@ class Protocol:
         for client in clients:
             try:
                 Protocol.send_command(client.soc, MSG=msg, COMMAND=Protocol.BROADCAST)
-                print("sending")
             except Exception as e:
                 print(e)
 

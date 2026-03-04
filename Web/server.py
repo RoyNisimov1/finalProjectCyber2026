@@ -3,7 +3,7 @@ from threading import Thread
 from connection import Connection
 from protocol import Protocol
 from datetime import datetime
-from Gemini import GideonGeminiBackEnd
+from AI.Gemini import GideonGeminiBackEnd
 
 
 class Server:
@@ -15,13 +15,13 @@ class Server:
 
         # setting up managers
         self.managers = []
-        with open("MANAGER_LIST.txt", "r") as f:
+        with open("Web/MANAGER_LIST.txt", "r") as f:
             self.managers = f.read().split("\n")
 
         self.managers = set(self.managers)
         self.connections = set()
         self.bad_words = []
-        with open("BANNED_WORDS", "r") as f:
+        with open("Web/BANNED_WORDS", "r") as f:
             self.bad_words = f.read().split("\n")
 
         # setting up connections
@@ -68,6 +68,11 @@ class Server:
         try:
             # For first connection
             handshake = Server.handshake(conn)
+            if handshake["ID"].lower() in self.bad_words:
+                print("Kicking client")
+                self.kick_client(conn, "Name is not allowed")
+                conn.close()
+                return
             conn_client = Connection(conn, handshake["ID"], isAdmin=self.isManager(handshake["ID"]))
             self.connections.add(conn_client)
 
@@ -113,28 +118,34 @@ class Server:
                         user = self.get_connection_by_id(data["USERID"])
                         if user is None: continue
                         user.mute(False)
+                    if command == Protocol.KICK:
+                        if not conn_client.isAdmin: continue
+                        user = self.get_connection_by_id(data["USERID"])
+                        if user is None: continue
+                        self.kick_client(user, "Kicked by: " + conn_client.userID)
                     if command == Protocol.GIDEON:
                         prompt = data["PROMPT"]
                         response_ai = self.GIDEON.prompt(prompt)
-                        Protocol.send_command(conn_client.soc, COMMAND=Protocol.PRIVATE, MSG = response_ai)
-
-
-
-
-
+                        Protocol.send_command(conn_client.soc, COMMAND=Protocol.PRIVATE, MSG=response_ai)
                 except ConnectionError as e:
                     self.close_connection(conn_client)
                 except Exception as e:
                     print(e)
                     continue
-
         except:
             conn.close()
+
+    def kick_client(self, conn: Connection, kick_rsn: str):
+        Protocol.send_command(conn.soc, COMMAND=Protocol.PRIVATE, MSG=kick_rsn)
+        Protocol.send_command(conn.soc, COMMAND=Protocol.KICK)
+        self.close_connection(conn)
 
 
     def close_connection(self, conn: Connection):
         self.connections.remove(conn)
-
+        try:
+            conn.soc.close()
+        except: ...
 
 if __name__ == "__main__":
     server: Server = Server()
