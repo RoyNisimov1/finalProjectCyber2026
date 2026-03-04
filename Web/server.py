@@ -123,6 +123,15 @@ class Server:
                         user = self.get_connection_by_id(data["USERID"])
                         if user is None: continue
                         self.kick_client(user, "Kicked by: " + conn_client.userID)
+                    if command == Protocol.GET_USERS:
+                        mangs = []
+                        usrs = []
+                        for _conn in self.connections:
+                            if _conn.isAdmin: mangs.append(_conn.userID)
+                            else: usrs.append(_conn.userID)
+                        d = "----------------------\nAdmins:\n----------------------\n" + "\n".join(mangs) + "\n\n----------------------\nUsers:\n----------------------\n\n" + "\n".join(usrs)
+                        Protocol.send_command(conn_client.soc, COMMAND=Protocol.PRIVATE, MSG=d)
+
                     if command == Protocol.GIDEON:
                         prompt = data["PROMPT"]
                         response_ai = self.GIDEON.prompt(prompt)

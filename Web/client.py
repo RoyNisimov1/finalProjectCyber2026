@@ -38,6 +38,8 @@ class Client:
                     if parsed_data[0].lower() in ["kick"]:
                         userID = parsed_data[1]
                         Protocol.send_command(self.sock, COMMAND=Protocol.KICK, USERID=userID)
+                    if parsed_data[0].lower() in ["users", "gusrs", "get_users"]:
+                        Protocol.send_command(self.sock, COMMAND=Protocol.GET_USERS)
                     if parsed_data[0] in ["GIDEON"]:
                         prompt = " ".join(parsed_data[1:])
                         Protocol.send_command(self.sock, COMMAND=Protocol.GIDEON, PROMPT = prompt)

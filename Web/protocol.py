@@ -18,6 +18,7 @@ class Protocol:
     BROADCAST = "BROADCAST"
     PRIVATE = "PRIVATE"
     KICK = "KICK"
+    GET_USERS = "GETUSRS"
     GIDEON = "GIDEON"
 
 
