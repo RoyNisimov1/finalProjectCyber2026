@@ -3,7 +3,15 @@ from threading import Thread
 from connection import Connection
 from protocol import Protocol
 from datetime import datetime
+
+#AI
 from AI.Gemini import GideonGeminiBackEnd
+
+#Encryption
+from AsymmetricEncryptions.PublicPrivateKey.ECC import ECKey, ECDH, ECPoint
+from AsymmetricEncryptions.Protocols.KDF import KDF
+from AsymmetricEncryptions.General.BytesAndInts import BytesAndInts
+from Encryption.AESWrapper import AESWrapper
 
 
 class Server:
@@ -12,6 +20,13 @@ class Server:
     def __init__(self):
         # setting up the AI
         self.GIDEON = GideonGeminiBackEnd()
+
+        # setting up encryption
+
+        self.key_pair = ECKey.new(Protocol.CURVE)
+
+        self.ENCKey = AESWrapper.generate_key()
+
 
         # setting up managers
         self.managers = []
@@ -53,11 +68,16 @@ class Server:
                 break
         return r
 
-    @staticmethod
-    def handshake(conn):
+
+    def handshake(self, conn):
         data = Protocol.recv_command(conn)
         assert data["COMMAND"] == Protocol.HANDSHAKE
         assert "ID" in data
+        assert "PUBKEY" in data
+        Protocol.send_command(conn, COMMAND=Protocol.DH1, PUBKEY=self.key_pair.public_key.export())
+        p = ECDH.Stage2(self.key_pair, ECPoint.load(data["PUBKEY"]))
+        shared_key = KDF.derive_key(p.export().encode())[:32]
+        Protocol.send_command(conn, key=shared_key, COMMAND=Protocol.DHFin, ENCKEY=BytesAndInts.byte2Int(self.ENCKey))
         return data
 
     def isManager(self, id):
@@ -67,7 +87,7 @@ class Server:
 
         try:
             # For first connection
-            handshake = Server.handshake(conn)
+            handshake = self.handshake(conn)
             if handshake["ID"].lower() in self.bad_words:
                 print("Kicking client")
                 self.kick_client(conn, "Name is not allowed")
@@ -79,7 +99,7 @@ class Server:
             # Handle client
             while True:
                 try:
-                    data = Protocol.recv_command(conn)
+                    data = Protocol.recv_command(conn, key=self.ENCKey)
                     command = data["COMMAND"]
                     data["MSG"]: str
                     if command == Protocol.SEND_MSG:
@@ -97,7 +117,7 @@ class Server:
                         if conn_client.isAdmin:
                             msg += "@"
                         msg += conn_client.userID + ": " + data["MSG"]
-                        Protocol.broadcast(msg, self.connections)
+                        Protocol.broadcast(msg, self.connections, key=self.ENCKey)
                     if command == Protocol.APPOINT_MANAGER:
                         if not conn_client.isAdmin: continue
                         user = self.get_connection_by_id(data["USERID"])
@@ -130,23 +150,23 @@ class Server:
                             if _conn.isAdmin: mangs.append(_conn.userID)
                             else: usrs.append(_conn.userID)
                         d = "----------------------\nAdmins:\n----------------------\n" + "\n".join(mangs) + "\n\n----------------------\nUsers:\n----------------------\n\n" + "\n".join(usrs)
-                        Protocol.send_command(conn_client.soc, COMMAND=Protocol.PRIVATE, MSG=d)
+                        Protocol.send_command(conn_client.soc, key=self.ENCKey, COMMAND=Protocol.PRIVATE, MSG=d)
 
                     if command == Protocol.GIDEON:
                         prompt = data["PROMPT"]
                         response_ai = self.GIDEON.prompt(prompt)
-                        Protocol.send_command(conn_client.soc, COMMAND=Protocol.PRIVATE, MSG=response_ai)
+                        Protocol.send_command(conn_client.soc, key=self.ENCKey, COMMAND=Protocol.PRIVATE, MSG=response_ai)
                 except ConnectionError as e:
                     self.close_connection(conn_client)
                 except Exception as e:
                     print(e)
                     continue
-        except:
+        except Exception as _:
             conn.close()
 
     def kick_client(self, conn: Connection, kick_rsn: str):
-        Protocol.send_command(conn.soc, COMMAND=Protocol.PRIVATE, MSG=kick_rsn)
-        Protocol.send_command(conn.soc, COMMAND=Protocol.KICK)
+        Protocol.send_command(conn.soc, key=self.ENCKey, COMMAND=Protocol.PRIVATE, MSG=kick_rsn)
+        Protocol.send_command(conn.soc, key=self.ENCKey, COMMAND=Protocol.KICK)
         self.close_connection(conn)
 
 
@@ -154,7 +174,7 @@ class Server:
         self.connections.remove(conn)
         try:
             conn.soc.close()
-        except: ...
+        except Exception as _: ...
 
 if __name__ == "__main__":
     server: Server = Server()

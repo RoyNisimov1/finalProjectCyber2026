@@ -1,12 +1,19 @@
 import os
 import socket
 import json
+from AsymmetricEncryptions.PublicPrivateKey.ECC import ECKey, ECDH, ECSchnorr, ECIES, EllipticCurveNISTP256
+from Encryption.AESWrapper import AESWrapper
 
 class Protocol:
     #Color terminal Codes
     GREEN = '\033[32m'
     RED = '\033[31m'
     RESET = '\033[0m'
+
+    #Encryption
+    CURVE = EllipticCurveNISTP256.get_curve()
+    DH1 = "DiffieHellman1"
+    DHFin = "DiffieHellmanFin"
 
     #Protocol codes
     HANDSHAKE = "HANDSHAKE"
@@ -43,7 +50,9 @@ class Protocol:
         return l
 
     @staticmethod
-    def create_msg(data: bytes) -> bytes:
+    def create_msg(data: bytes, key: bytes = b"") -> bytes:
+        if len(key) != 0:
+            data = AESWrapper.encrypt(key, data)
         len_data = len(data)
         l = Protocol.convert_base(len_data, 256)
         if len(l) > 4: raise Exception(f"Data {data} is too big to send in one packet!")
@@ -53,11 +62,14 @@ class Protocol:
         return prepending_bytes + data
 
     @staticmethod
-    def get_msg(working_socket: socket.socket):
+    def get_msg(working_socket: socket.socket, key: bytes = b""):
         prepending_bytes = working_socket.recv(4)
         l = [b for b in prepending_bytes]
         len_of_msg = Protocol.convert_to_base10(l, 256)
-        return working_socket.recv(len_of_msg)
+        if len(key) != 0:
+            return AESWrapper.decrypt(key, working_socket.recv(len_of_msg))
+        else:
+            return working_socket.recv(len_of_msg)
 
 
     @staticmethod
@@ -101,21 +113,21 @@ class Protocol:
         return b
 
     @staticmethod
-    def broadcast(msg, clients: set):
+    def broadcast(msg, clients: set, key=b""):
         for client in clients:
             try:
-                Protocol.send_command(client.soc, MSG=msg, COMMAND=Protocol.BROADCAST)
+                Protocol.send_command(client.soc, key=key, MSG=msg, COMMAND=Protocol.BROADCAST)
             except Exception as e:
                 print(e)
 
 
 
     @staticmethod
-    def send_command(sock: socket.socket, **kwargs):
+    def send_command(sock: socket.socket, key: bytes = b"", **kwargs):
         data = json.dumps(kwargs).encode()
-        sock.send(Protocol.create_msg(data))
+        sock.send(Protocol.create_msg(data, key=key))
 
     @staticmethod
-    def recv_command(sock):
-        data = Protocol.get_msg(sock)
+    def recv_command(sock, key: bytes = b""):
+        data = Protocol.get_msg(sock, key=key)
         return json.loads(data.decode())
