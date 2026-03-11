@@ -75,10 +75,18 @@ class Server:
         assert "ID" in data
         assert "PUBKEY" in data
         Protocol.send_command(conn, COMMAND=Protocol.DH1, PUBKEY=self.key_pair.public_key.export())
-        p = ECDH.Stage2(self.key_pair, ECPoint.load(data["PUBKEY"]))
+        print("sent pk")
+        k = ECPoint.load(data["PUBKEY"])
+        p = ECDH.Stage2(self.key_pair, k)
         shared_key = KDF.derive_key(p.export().encode())[:32]
         Protocol.send_command(conn, key=shared_key, COMMAND=Protocol.DHFin, ENCKEY=BytesAndInts.byte2Int(self.ENCKey))
-        return data
+        if data["ID"].lower() in self.bad_words:
+            print("Kicking client")
+            self.kick_client(conn, "Name is not allowed")
+            conn.close()
+            return None
+        conn_client = Connection(conn, data["ID"], isAdmin=self.isManager(data["ID"]), publicKey=k)
+        return conn_client
 
     def isManager(self, id):
         return id in self.managers
@@ -86,14 +94,9 @@ class Server:
     def handle_client(self, conn: socket.socket, address):
 
         try:
-            # For first connection
-            handshake = self.handshake(conn)
-            if handshake["ID"].lower() in self.bad_words:
-                print("Kicking client")
-                self.kick_client(conn, "Name is not allowed")
-                conn.close()
+            conn_client = self.handshake(conn)
+            if conn_client is None:
                 return
-            conn_client = Connection(conn, handshake["ID"], isAdmin=self.isManager(handshake["ID"]))
             self.connections.add(conn_client)
 
             # Handle client
@@ -106,8 +109,9 @@ class Server:
                         if conn_client.isMuted:
                             continue
                         hasBadWord = False
+                        dss1 = data["MSG"].lower()
                         for word in self.bad_words:
-                            if word in data["MSG"]:
+                            if word in dss1:
                                 hasBadWord = True
                                 break
                         if hasBadWord: continue

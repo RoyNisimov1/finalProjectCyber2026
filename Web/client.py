@@ -26,6 +26,7 @@ class Client:
                 try:
                     data = input("Send messages (/ for commands): ").lstrip()
                     if data[0] != "/":
+
                         Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.SEND_MSG, MSG=data)
 
                     data = data[1:]

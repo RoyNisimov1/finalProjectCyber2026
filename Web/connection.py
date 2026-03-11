@@ -2,11 +2,12 @@ import socket
 import hashlib
 
 class Connection:
-    def __init__(self, soc: socket.socket, userID: str, isAdmin: bool = False, isMuted = False):
+    def __init__(self, soc: socket.socket, userID: str, isAdmin: bool = False, isMuted = False, publicKey=None):
         self.soc = soc
         self.userID = userID
         self.isAdmin = isAdmin
         self.isMuted = isMuted
+        self.publicKey=publicKey
 
     def __str__(self):
         return f"{self.soc=}\n{self.userID=}\n{self.isAdmin=}\n{self.isMuted=}"

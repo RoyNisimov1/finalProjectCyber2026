@@ -1,8 +1,11 @@
 import os
 import socket
 import json
+
+from AsymmetricEncryptions import ECPoint
 from AsymmetricEncryptions.PublicPrivateKey.ECC import ECKey, ECDH, ECSchnorr, ECIES, EllipticCurveNISTP256
 from Encryption.AESWrapper import AESWrapper
+from base64 import b64encode, b64decode
 
 class Protocol:
     #Color terminal Codes
@@ -50,26 +53,45 @@ class Protocol:
         return l
 
     @staticmethod
-    def create_msg(data: bytes, key: bytes = b"") -> bytes:
+    def create_msg(data: bytes, key: bytes = b"", signKey=None) -> bytes:
         if len(key) != 0:
             data = AESWrapper.encrypt(key, data)
+        if signKey is not None:
+            signer = ECSchnorr(signKey)
+            signature = signer.sign(data)
+            d = {"SIG": (signature[0], signature[1].export()), "DATA": b64encode(data).decode()}
+            data = json.dumps(d).encode()
+        else:
+            d = {"SIG": None, "DATA": b64encode(data).decode()}
+            data = json.dumps(d).encode()
         len_data = len(data)
         l = Protocol.convert_base(len_data, 256)
         if len(l) > 4: raise Exception(f"Data {data} is too big to send in one packet!")
         for _ in range(4 - len(l)):
             l.insert(0, 0)
         prepending_bytes = b"".join([l[i].to_bytes(1, "little") for i in range(4)])
-        return prepending_bytes + data
+        finD = prepending_bytes + data
+        return finD
+
+
 
     @staticmethod
-    def get_msg(working_socket: socket.socket, key: bytes = b""):
+    def get_msg(working_socket: socket.socket, key: bytes = b"", verifyKey=None):
         prepending_bytes = working_socket.recv(4)
         l = [b for b in prepending_bytes]
         len_of_msg = Protocol.convert_to_base10(l, 256)
+        data = working_socket.recv(len_of_msg)
+        data = json.loads(data.decode())
+        msg = b64decode(data["DATA"])
+        verify = None
         if len(key) != 0:
-            return AESWrapper.decrypt(key, working_socket.recv(len_of_msg))
-        else:
-            return working_socket.recv(len_of_msg)
+            msg = AESWrapper.decrypt(key, msg)
+        if verifyKey:
+            signature = (data["SIG"][0], ECPoint.load(data["SIG"][1]))
+            verify = ECSchnorr.verify(signature, verifyKey, msg)
+        return msg, verify
+
+
 
 
     @staticmethod
@@ -90,28 +112,6 @@ class Protocol:
             s += n[p] * pow(b, p)
         return s
 
-
-    @staticmethod
-    def send_file(working_socket: socket.socket, file_path: str):
-        if os.path.exists(file_path):
-            with open(file_path, "rb") as f:
-                b = f.read()
-            working_socket.send(Protocol.create_msg(str(len(b)).encode()))
-            working_socket.sendall(b)
-        else:
-            working_socket.send(Protocol.create_msg(b"Failed to send!"))
-
-    @staticmethod
-    def recv_file(working_socket: socket.socket):
-        size = int(Protocol.get_msg(working_socket).decode())
-        s = 0
-        b = b""
-        while s < size:
-            data = working_socket.recv(size)
-            b += data
-            s += len(data)
-        return b
-
     @staticmethod
     def broadcast(msg, clients: set, key=b""):
         for client in clients:
@@ -123,11 +123,13 @@ class Protocol:
 
 
     @staticmethod
-    def send_command(sock: socket.socket, key: bytes = b"", **kwargs):
+    def send_command(sock: socket.socket, key: bytes = b"", signKey=None, **kwargs):
         data = json.dumps(kwargs).encode()
-        sock.send(Protocol.create_msg(data, key=key))
+        sock.send(Protocol.create_msg(data, key=key, signKey=signKey))
 
     @staticmethod
-    def recv_command(sock, key: bytes = b""):
-        data = Protocol.get_msg(sock, key=key)
-        return json.loads(data.decode())
+    def recv_command(sock, key: bytes = b"", verifyKey=None):
+        data, verified = Protocol.get_msg(sock, key=key, verifyKey=verifyKey)
+        d = json.loads(data.decode())
+        d["VERIFIED"] = verified
+        return d
