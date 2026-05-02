@@ -6,6 +6,8 @@ from AsymmetricEncryptions import ECPoint
 from AsymmetricEncryptions.PublicPrivateKey.ECC import ECKey, ECDH, ECSchnorr, ECIES, EllipticCurveNISTP256
 from Encryption.AESWrapper import AESWrapper
 from base64 import b64encode, b64decode
+from hashlib import sha3_256
+
 
 class Protocol:
     #Color terminal Codes
@@ -54,11 +56,12 @@ class Protocol:
 
     @staticmethod
     def create_msg(data: bytes, key: bytes = b"", signKey=None) -> bytes:
+        msgHash = sha3_256(data).digest()
         if len(key) != 0:
             data = AESWrapper.encrypt(key, data)
         if signKey is not None:
             signer = ECSchnorr(signKey)
-            signature = signer.sign(data)
+            signature = signer.sign(msgHash)
             d = {"SIG": (signature[0], signature[1].export()), "DATA": b64encode(data).decode()}
             data = json.dumps(d).encode()
         else:
@@ -88,7 +91,7 @@ class Protocol:
             msg = AESWrapper.decrypt(key, msg)
         if verifyKey:
             signature = (data["SIG"][0], ECPoint.load(data["SIG"][1]))
-            verify = ECSchnorr.verify(signature, verifyKey, msg)
+            verify = ECSchnorr.verify(signature, sha3_256(msg).digest(), verifyKey)
         return msg, verify
 
 

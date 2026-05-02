@@ -26,31 +26,30 @@ class Client:
                 try:
                     data = input("Send messages (/ for commands): ").lstrip()
                     if data[0] != "/":
-
-                        Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.SEND_MSG, MSG=data)
+                        Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.SEND_MSG, MSG=data, signKey=self.key_pair)
 
                     data = data[1:]
                     parsed_data = Protocol.parse_command(data)
                     if parsed_data[0].lower() in ["am", "appoint_manager", "appointmanager"]:
                         userID = parsed_data[1]
-                        Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.APPOINT_MANAGER, USERID=userID)
+                        Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.APPOINT_MANAGER, USERID=userID, signKey=self.key_pair)
                     if parsed_data[0].lower() in ["dm", "demote_manager", "demotemanager"]:
                         userID = parsed_data[1]
-                        Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.DEMOTE_MANAGER, USERID=userID)
+                        Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.DEMOTE_MANAGER, USERID=userID, signKey=self.key_pair)
                     if parsed_data[0].lower() in ["mt", "mute"]:
                         userID = parsed_data[1]
-                        Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.MUTE, USERID=userID)
+                        Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.MUTE, USERID=userID, signKey=self.key_pair)
                     if parsed_data[0].lower() in ["umt", "unmute"]:
                         userID = parsed_data[1]
-                        Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.UNMUTE, USERID=userID)
+                        Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.UNMUTE, USERID=userID, signKey=self.key_pair)
                     if parsed_data[0].lower() in ["kick"]:
                         userID = parsed_data[1]
-                        Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.KICK, USERID=userID)
+                        Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.KICK, USERID=userID, signKey=self.key_pair)
                     if parsed_data[0].lower() in ["users", "gusrs", "get_users"]:
-                        Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.GET_USERS)
+                        Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.GET_USERS, signKey=self.key_pair)
                     if parsed_data[0] in ["GIDEON"]:
                         prompt = " ".join(parsed_data[1:])
-                        Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.GIDEON, PROMPT = prompt)
+                        Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.GIDEON, PROMPT=prompt, signKey=self.key_pair)
                 except Exception as e:
                     ...
     def listen(self):

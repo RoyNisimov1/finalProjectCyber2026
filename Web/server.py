@@ -98,11 +98,13 @@ class Server:
             if conn_client is None:
                 return
             self.connections.add(conn_client)
-
+            print(conn_client.publicKey)
             # Handle client
             while True:
                 try:
-                    data = Protocol.recv_command(conn, key=self.ENCKey)
+                    data = Protocol.recv_command(conn, key=self.ENCKey, verifyKey=conn_client.publicKey)
+                    if not data["VERIFIED"]:
+                        continue
                     command = data["COMMAND"]
                     data["MSG"]: str
                     if command == Protocol.SEND_MSG:
@@ -155,16 +157,16 @@ class Server:
                             else: usrs.append(_conn.userID)
                         d = "----------------------\nAdmins:\n----------------------\n" + "\n".join(mangs) + "\n\n----------------------\nUsers:\n----------------------\n\n" + "\n".join(usrs)
                         Protocol.send_command(conn_client.soc, key=self.ENCKey, COMMAND=Protocol.PRIVATE, MSG=d)
-
                     if command == Protocol.GIDEON:
                         prompt = data["PROMPT"]
                         response_ai = self.GIDEON.prompt(prompt)
                         Protocol.send_command(conn_client.soc, key=self.ENCKey, COMMAND=Protocol.PRIVATE, MSG=response_ai)
                 except ConnectionError as e:
                     self.close_connection(conn_client)
+                except WindowsError as e:
+                    self.close_connection(conn_client)
                 except Exception as e:
                     print(e)
-                    continue
         except Exception as _:
             conn.close()
 
