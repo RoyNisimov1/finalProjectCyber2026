@@ -1,8 +1,12 @@
+import secrets
 import socket
-from threading import Thread
+from threading import Thread, local
 from connection import Connection
 from protocol import Protocol
 from datetime import datetime
+import sqlite3
+from secrets import token_bytes
+from hashlib import scrypt
 
 #AI
 from AI.Gemini import GideonGeminiBackEnd
@@ -28,6 +32,17 @@ class Server:
         self.ENCKey = AESWrapper.generate_key()
 
 
+
+        self.thread_data = local()
+
+        # setting up db
+        # self.set_up_dbserver()
+        #
+        # db = self.get_db_connection()
+        # dbc = db.cursor()
+        # dbc.execute("SELECT * FROM users WHERE userName = 1")
+        # print(dbc.fetchall())
+        # db.close()
         # setting up managers
         self.managers = []
         with open("Web/MANAGER_LIST.txt", "r") as f:
@@ -60,6 +75,94 @@ class Server:
         except Exception as e:
             print(e)
 
+    def set_up_dbserver(self):
+
+        dbConnection = self.get_db_connection()
+        dbCursor = dbConnection.cursor()
+        #Initial setup
+        sqlcmd = """CREATE TABLE users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userName VARCHAR(10),
+        isAdmin INTEGER DEFAULT 0 CHECK (isAdmin IN (0, 1)),
+        passwordHash VARCHAR(64),
+        salt BLOB,
+        public_key TEXT,
+        encrypted_private_key TEXT
+        )
+        """
+        dbCursor.execute(sqlcmd)
+        dbConnection.close()
+
+    def get_db_connection(self):
+        if not hasattr(self.thread_data, "connection"):
+            self.thread_data.connection = sqlite3.connect('UserDataBase.db', timeout=20)
+            self.thread_data.connection.execute("PRAGMA journal_mode=WAL;")
+        return self.thread_data.connection
+
+    def sign_up(self, connection, shared_private_key: bytes):
+        db = self.get_db_connection()
+        cursor = db.cursor()
+
+        try:
+            # 1. Check if user exists
+            cursor.execute("SELECT 1 FROM users WHERE userName = ?", (connection.userID,))
+            if cursor.fetchone() is not None:
+                return False
+
+            # 2. Receive and Verify Data
+            data = Protocol.recv_command(connection.soc, key=shared_private_key, verifyKey=connection.publicKey)
+            if not data or not data.get("VERIFIED"):
+                return False
+
+            passwd = data.get("PASSWORD", "")
+            if len(passwd) > 10:
+                return False
+
+            # 3. Hash and Store
+            salt = token_bytes(16)
+            hashed = scrypt(passwd.encode(), salt=salt, n=16384, r=8, p=1, dklen=64).hex()[:64]
+
+            pub_key_str = str(connection.publicKey.export())
+
+            cursor.execute(
+                "INSERT INTO users (userName, isAdmin, passwordHash, salt, public_key, encrypted_private_key) VALUES (?, ?, ?, ?, ?, NULL)",
+                (connection.userID, 0, hashed, salt, pub_key_str)
+            )
+            db.commit()
+            return True
+
+        except Exception as e:
+            print(f"Sign-up error: {e}")  # Log the actual error to see why it fails
+            return False
+        finally:
+            db.close()
+
+    def log_in(self, connection, shared_private_key: bytes):
+        db = self.get_db_connection()
+        cursor = db.cursor()
+        try:
+            # 1. Check if user exists
+            cursor.execute("SELECT * FROM users WHERE userName = ?", (connection.userID,))
+            userData = cursor.fetchone()
+            if userData is None:
+                return False
+
+            data = Protocol.recv_command(connection.soc, key=shared_private_key, verifyKey=connection.publicKey)
+            if not data or not data.get("VERIFIED"):
+                return False
+
+            passwd = data.get("PASSWORD", "")
+            pwdhash = userData[3]
+            salt = userData[4]
+            hashed = scrypt(passwd.encode(), salt=salt, n=16384, r=8, p=1, dklen=64).hex()[:64]
+            ver = secrets.compare_digest(pwdhash, hashed)
+            return ver
+        except Exception as e:
+            print(f"Log-in error: {e}")  # Log the actual error to see why it fails
+            return False
+        finally:
+            db.close()
+
     def get_connection_by_id(self, id: str):
         r = None
         for con in self.connections:
@@ -70,7 +173,7 @@ class Server:
 
 
     def handshake(self, conn):
-        data = Protocol.recv_command(conn)
+        data: dict = Protocol.recv_command(conn)
         assert data["COMMAND"] == Protocol.HANDSHAKE
         assert "ID" in data
         assert "PUBKEY" in data
@@ -84,21 +187,33 @@ class Server:
             print("Kicking client")
             self.kick_client(conn, "Name is not allowed")
             conn.close()
-            return None
+            return None, None
         conn_client = Connection(conn, data["ID"], isAdmin=self.isManager(data["ID"]), publicKey=k)
-        return conn_client
+        if "PURPOSE" in data.keys():
+            return conn_client, shared_key, data["PURPOSE"]
+        return conn_client, shared_key, None
 
     def isManager(self, id):
         return id in self.managers
 
     def handle_client(self, conn: socket.socket, address):
-
         try:
-            conn_client = self.handshake(conn)
+            conn_client, shared_private_key, purpose = self.handshake(conn)
             if conn_client is None:
                 return
             self.connections.add(conn_client)
-            print(conn_client.publicKey)
+
+            if purpose == Protocol.SIGNUP:
+                success = self.sign_up(conn_client, shared_private_key)
+                Protocol.send_command(conn, shared_private_key, self.key_pair, signup_success=success)
+                self.kick_client(conn_client, "Signup done")
+
+            if purpose == Protocol.LOGGING_IN:
+                success = self.log_in(conn_client, shared_private_key)
+                Protocol.send_command(conn, shared_private_key, self.key_pair, signup_success=success)
+                if not success:
+                    self.kick_client(conn_client, "Login Failed")
+
             # Handle client
             while True:
                 try:

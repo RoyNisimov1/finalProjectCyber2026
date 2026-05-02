@@ -20,6 +20,10 @@ class Protocol:
     DH1 = "DiffieHellman1"
     DHFin = "DiffieHellmanFin"
 
+    #Signup codes
+    SIGNUP = "SIGNUP"
+    LOGGING_IN = "LOGGING_IN"
+
     #Protocol codes
     HANDSHAKE = "HANDSHAKE"
     SEND_MSG = "SEND_MSG"

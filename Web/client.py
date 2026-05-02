@@ -15,11 +15,22 @@ class Client:
         self.key_pair = ECKey.new(Protocol.CURVE)
         self.ENCKey = None
 
+        self.server_public_key = None
+
         self.disconnectB = False
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as self.sock:
             self.sock.connect((ip, port))
             id = Client.get_id()
-            self.handshake(id)
+            method = input("Sign up [0]\nLog in [1]\n")
+            if method in ["0", ""]:
+                method = Protocol.SIGNUP
+            if method in ["1"]:
+                method = Protocol.LOGGING_IN
+            handshake_data = self.handshake(id, method)
+            if method == Protocol.SIGNUP:
+                print(handshake_data)
+                self.disconnect()
+                return
             listenThread = Thread(target=self.listen)
             listenThread.start()
             while not self.disconnectB:
@@ -84,16 +95,32 @@ class Client:
     def get_id():
         return input("ID: ")
 
-    def handshake(self, id: str):
-        data = {"COMMAND": Protocol.HANDSHAKE, "ID": id, "PUBKEY": self.key_pair.public_key.export()}
+    def handshake(self, id: str, purpose=Protocol.SIGNUP):
+        data = {"COMMAND": Protocol.HANDSHAKE, "ID": id, "PUBKEY": self.key_pair.public_key.export(), "PURPOSE": purpose}
         Protocol.send_command(self.sock, **data)
         d = Protocol.recv_command(self.sock)
         assert "PUBKEY" in d and "COMMAND" in d
+        self.server_public_key = ECPoint.load(d["PUBKEY"])
         ecdh = ECDH(self.key_pair)
-        p = ecdh.Stage1(ECPoint.load(d["PUBKEY"]))
+        p = ecdh.Stage1(self.server_public_key)
         shared_key = KDF.derive_key(p.export().encode())[:32]
         d = Protocol.recv_command(self.sock, key=shared_key)
         self.ENCKey = BytesAndInts.int2Byte(d["ENCKEY"])
+        data = None
+        if purpose == Protocol.SIGNUP:
+            password = input("Password: ")
+            data = {"PASSWORD": password,
+                    "PURPOSE": purpose}
+            Protocol.send_command(self.sock, **data, key=shared_key, signKey=self.key_pair)
+            data = Protocol.recv_command(self.sock,  key=shared_key, verifyKey=self.server_public_key)
+        if purpose == Protocol.LOGGING_IN:
+            password = input("Password: ")
+            data = {"PASSWORD": password,
+                    "PURPOSE": purpose}
+            Protocol.send_command(self.sock, **data, key=shared_key, signKey=self.key_pair)
+            data = Protocol.recv_command(self.sock,  key=shared_key, verifyKey=self.server_public_key)
+        return data
+
 
 if __name__ == "__main__":
     client = Client()
