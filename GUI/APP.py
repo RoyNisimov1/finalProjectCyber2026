@@ -2,7 +2,6 @@
 import customtkinter as ctk
 from LOGIN_SIGNUP import LoginSignupPage
 from MAIN_PAGE import MainPage, Message
-from GeneralColorPalate import GeneralColorPalate as GCP
 import socket
 from threading import Thread
 
@@ -92,14 +91,45 @@ class APP(ctk.CTk):
 
             def send_msg():
                 entry_box = self.main_page.get_msg_entry_box()
-                txt: str = entry_box.get_text()
-                txt = txt.lstrip()
-                txt = txt.rstrip()
-                Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.SEND_MSG, MSG=txt,
-                                      signKey=self.key_pair)
+                data: str = entry_box.get_text()
+                data = data.lstrip()
+                data = data.rstrip()
+                if data[0] != "/":
+                    Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.SEND_MSG, MSG=data,
+                                          signKey=self.key_pair)
+
+                data = data[1:]
+                parsed_data = Protocol.parse_command(data)
+                if parsed_data[0].lower() in ["am", "appoint_manager", "appointmanager"]:
+                    userID = parsed_data[1]
+                    Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.APPOINT_MANAGER, USERID=userID,
+                                          signKey=self.key_pair)
+                if parsed_data[0].lower() in ["dm", "demote_manager", "demotemanager"]:
+                    userID = parsed_data[1]
+                    Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.DEMOTE_MANAGER, USERID=userID,
+                                          signKey=self.key_pair)
+                if parsed_data[0].lower() in ["mt", "mute"]:
+                    userID = parsed_data[1]
+                    Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.MUTE, USERID=userID,
+                                          signKey=self.key_pair)
+                if parsed_data[0].lower() in ["umt", "unmute"]:
+                    userID = parsed_data[1]
+                    Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.UNMUTE, USERID=userID,
+                                          signKey=self.key_pair)
+                if parsed_data[0].lower() in ["kick"]:
+                    userID = parsed_data[1]
+                    Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.KICK, USERID=userID,
+                                          signKey=self.key_pair)
+                if parsed_data[0].lower() in ["users", "gusrs", "get_users"]:
+                    Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.GET_USERS, signKey=self.key_pair)
+                if parsed_data[0] in ["GIDEON"]:
+                    prompt = " ".join(parsed_data[1:])
+                    Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.GIDEON, PROMPT=prompt,
+                                          signKey=self.key_pair)
                 entry_box.clear_txt_box()
 
             self.main_page.get_submit_event().subscribe(send_msg)
+            self.main_page.get_submit_event().subscribe(self.main_page.force_scrollbar_to_bottom)
             self.logged_event.subscribe(change_login_to_main_page)
             self.logged_event.subscribe(start_listening_loop)
 
@@ -117,13 +147,12 @@ class APP(ctk.CTk):
             try:
                 data = Protocol.recv_command(self.sock, key=self.ENCKey, verifyKey=self.server_public_key)
                 if not data["VERIFIED"]: continue
+                print(data)
                 if data["COMMAND"] == Protocol.BROADCAST:
-                    self.main_page.get_msg_holder_box().add_msg(Message(author=data["author"], date=data["date"], text=data["message_data"]))
+                    self.main_page.get_msg_holder_box().add_msg(Message(author=data["author"], date=data["date"], text=data["message_data"], isAdmin=data["is_admin"]))
 
                 if data["COMMAND"] == Protocol.PRIVATE:
-                    self.main_page.get_msg_holder_box().add_msg(
-                        Message(author=data["author"], date=data["date"], text=data["message_data"],
-                                isPrivate=True))
+                    self.main_page.get_msg_holder_box().add_msg(Message(author=data["author"], date=data["date"], text=data["MSG"], isPrivate=True, isAdmin=data["is_admin"]))
 
                 if data["COMMAND"] == Protocol.KICK:
                     print(Protocol.RED)
@@ -133,13 +162,15 @@ class APP(ctk.CTk):
                     print(Protocol.RESET)
                     self.disconnect()
             except ConnectionError:
+                self.disconnect()
                 return
             except Exception:
                 ...
 
     def disconnect(self):
         self.disconnectB = True
-
+        self.destroy()
+        exit()
 
 
 if __name__ == "__main__":

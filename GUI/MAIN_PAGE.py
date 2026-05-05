@@ -6,11 +6,12 @@ from GUIEvent import GUIEvent
 
 class Message:
 
-    def __init__(self, author, date, text, isPrivate=False):
+    def __init__(self, author="", date="", text="", isPrivate=False, isAdmin=False):
         self.author = author
         self.date = date
         self.text = text
         self.isPrivate=isPrivate
+        self.isAdmin=isAdmin
 
 class MessageContainer(ctk.CTkFrame):
 
@@ -19,7 +20,10 @@ class MessageContainer(ctk.CTkFrame):
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(0, weight=1)
-        self.label = ctk.CTkLabel(self, fg_color="transparent", text_color=GCP.get_black(),
+        color = GCP.get_black()
+        if message.isAdmin:
+            color = GCP.get_yellow()
+        self.label = ctk.CTkLabel(self, fg_color="transparent", text_color=color,
                                   font=GCP.get_font(40), text=message.author)
         self.label.grid(sticky="nsew", row=0, column=0)
         color = GCP.get_blue()
@@ -43,6 +47,7 @@ class MessagesHolderBox(ctk.CTkScrollableFrame):
 
 
 
+
     def update_msg(self):
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=4)
@@ -52,10 +57,13 @@ class MessagesHolderBox(ctk.CTkScrollableFrame):
             self.mgs_ctr.append(mc)
 
     def add_msg(self, message: Message):
-        self.messages.append(message)
-        mc = MessageContainer(self, message)
-        mc.grid(row=len(self.messages), column=0, sticky="nsew", pady=10)
-        self.mgs_ctr.append(mc)
+        try:
+            self.messages.append(message)
+            mc = MessageContainer(self, message)
+            mc.grid(row=len(self.messages), column=0, sticky="nsew", pady=10)
+            self.mgs_ctr.append(mc)
+        except Exception as e:
+            print(e)
 
 
 class MessageEntryBox(ctk.CTkFrame):
@@ -103,12 +111,11 @@ class MainPage(ctk.CTkFrame):
         self.m.grid(row=1, sticky="nsew")
 
         self.msg_holder_box = MessagesHolderBox(self)
-        self.get_submit_event().subscribe(self.force_scrollbar_to_bottom)
         self.msg_holder_box.grid(row=0, sticky="nsew", padx=10, pady=10)
 
     def force_scrollbar_to_bottom(self):
         self.update_idletasks()
-        self.msg_holder_box._parent_canvas.yview_moveto(1.0)
+        self.after(100, lambda: self.msg_holder_box._parent_canvas.yview_moveto(1.0))
 
     def get_submit_event(self):
         return self.m.get_submit_event()

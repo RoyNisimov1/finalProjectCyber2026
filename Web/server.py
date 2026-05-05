@@ -81,7 +81,7 @@ class Server:
         dbCursor = dbConnection.cursor()
         #Initial setup
         sqlcmd = """CREATE TABLE users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER PRIMARY KEY AUTOINCREMENT,
         userName VARCHAR(20),
         isAdmin INTEGER DEFAULT 0 CHECK (isAdmin IN (0, 1)),
         passwordHash VARCHAR(64),
@@ -126,7 +126,7 @@ class Server:
 
             cursor.execute(
                 "INSERT INTO users (userName, isAdmin, passwordHash, salt, public_key, encrypted_private_key) VALUES (?, ?, ?, ?, ?, NULL)",
-                (connection.userID, 0, hashed, salt, pub_key_str)
+                (connection.userID, connection.userID == "Admin", hashed, salt, pub_key_str)
             )
             db.commit()
             return True
@@ -145,27 +145,26 @@ class Server:
             cursor.execute("SELECT * FROM users WHERE userName = ?", (connection.userID,))
             userData = cursor.fetchone()
             if userData is None:
-                return False
+                return False, None
             data = Protocol.recv_command(connection.soc, key=shared_private_key, verifyKey=connection.publicKey)
             if not data or not data.get("VERIFIED"):
-                return False
+                return False, None
 
             passwd = data.get("PASSWORD", "")
             pwdhash = userData[3]
             salt = userData[4]
             hashed = scrypt(passwd.encode(), salt=salt, n=16384, r=8, p=1, dklen=64).hex()[:64]
             ver = secrets.compare_digest(pwdhash, hashed)
-            return ver
+            return ver, userData
         except Exception as e:
             print(f"Log-in error: {e}")  # Log the actual error to see why it fails
-            return False
-        finally:
-            db.close()
+            return False, None
 
-    def get_connection_by_id(self, id: str):
+
+    def get_connection_by_id(self, user_id: str):
         r = None
         for con in self.connections:
-            if con.userID == id:
+            if con.userID == user_id:
                 r = con
                 break
         return r
@@ -192,8 +191,8 @@ class Server:
             return conn_client, shared_key, data["PURPOSE"]
         return conn_client, shared_key, None
 
-    def isManager(self, id):
-        return id in self.managers
+    def isManager(self, user_id):
+        return user_id in self.managers
 
     def handle_client(self, conn: socket.socket, address):
         try:
@@ -209,10 +208,12 @@ class Server:
                 return
 
             if purpose == Protocol.LOGGING_IN:
-                success = self.log_in(conn_client, shared_private_key)
+                success, userData = self.log_in(conn_client, shared_private_key)
                 Protocol.send_command(conn, shared_private_key, self.key_pair, signup_success=success)
                 if not success:
                     self.kick_client(conn_client, "Login Failed")
+                if userData[2] == 1:
+                    conn_client.set_admin(True)
 
             # Handle client
             while True:
@@ -238,17 +239,13 @@ class Server:
                         if conn_client.isAdmin:
                             msg += "@"
                         msg += conn_client.userID + ": " + data["MSG"]
-                        Protocol.broadcast(msg, self.connections, key=self.ENCKey, signKey=self.key_pair, message_data=data["MSG"], date=time_now, author=conn_client.userID)
+                        Protocol.broadcast(msg, self.connections, key=self.ENCKey, signKey=self.key_pair, message_data=data["MSG"], date=time_now, author=conn_client.userID, is_admin=conn_client.isAdmin)
                     if command == Protocol.APPOINT_MANAGER:
                         if not conn_client.isAdmin: continue
-                        user = self.get_connection_by_id(data["USERID"])
-                        if user is None: continue
-                        user.set_admin(True)
+                        self.promote_to_admin(data["USERID"])
                     if command == Protocol.DEMOTE_MANAGER:
                         if not conn_client.isAdmin: continue
-                        user = self.get_connection_by_id(data["USERID"])
-                        if user is None: continue
-                        user.set_admin(False)
+                        self.demote_from_admin(data["USERID"])
                     if command == Protocol.MUTE:
                         if not conn_client.isAdmin: continue
                         user = self.get_connection_by_id(data["USERID"])
@@ -271,11 +268,11 @@ class Server:
                             if _conn.isAdmin: mangs.append(_conn.userID)
                             else: usrs.append(_conn.userID)
                         d = "----------------------\nAdmins:\n----------------------\n" + "\n".join(mangs) + "\n\n----------------------\nUsers:\n----------------------\n\n" + "\n".join(usrs)
-                        Protocol.send_command(conn_client.soc, key=self.ENCKey, COMMAND=Protocol.PRIVATE, MSG=d)
+                        Protocol.send_command(conn_client.soc, key=self.ENCKey, signKey=self.key_pair, COMMAND=Protocol.PRIVATE, MSG=d)
                     if command == Protocol.GIDEON:
                         prompt = data["PROMPT"]
                         response_ai = self.GIDEON.prompt(prompt)
-                        Protocol.send_command(conn_client.soc, key=self.ENCKey, COMMAND=Protocol.PRIVATE, MSG=response_ai)
+                        Protocol.send_command(conn_client.soc, key=self.ENCKey, signKey=self.key_pair, COMMAND=Protocol.PRIVATE, MSG=response_ai, author="GIDEON", date=datetime.now().strftime("%H:%M"))
                 except ConnectionError as e:
                     self.close_connection(conn_client)
                 except WindowsError as e:
@@ -284,10 +281,31 @@ class Server:
                     print(e)
         except Exception as _:
             conn.close()
+        finally:
+            self.get_db_connection().close()
+
+    def promote_to_admin(self, user_id: str):
+        db = self.get_db_connection()
+        dbcursor = db.cursor()
+        dbcursor.execute("UPDATE users SET isAdmin = 1 WHERE userName = ?", (user_id,))
+        db.commit()
+        user = self.get_connection_by_id(user_id)
+        if user is None: return
+        user.set_admin(True)
+
+    def demote_from_admin(self, user_id: str):
+        db = self.get_db_connection()
+        dbcursor = db.cursor()
+        dbcursor.execute("UPDATE users SET isAdmin = 0 WHERE userName = ?", (user_id,))
+        db.commit()
+        user = self.get_connection_by_id(user_id)
+        if user is None: return
+        user.set_admin(False)
+
 
     def kick_client(self, conn: Connection, kick_rsn: str):
-        Protocol.send_command(conn.soc, key=self.ENCKey, COMMAND=Protocol.PRIVATE, MSG=kick_rsn)
-        Protocol.send_command(conn.soc, key=self.ENCKey, COMMAND=Protocol.KICK)
+        Protocol.send_command(conn.soc, key=self.ENCKey, COMMAND=Protocol.PRIVATE, MSG=kick_rsn, signKey=self.key_pair, author="SERVER", date="now")
+        Protocol.send_command(conn.soc, key=self.ENCKey, COMMAND=Protocol.KICK, signKey=self.key_pair)
         self.close_connection(conn)
 
 
