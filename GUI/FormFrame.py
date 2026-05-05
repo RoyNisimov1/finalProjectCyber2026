@@ -3,7 +3,7 @@ from GeneralColorPalate import GeneralColorPalate as GCP
 
 
 class CustomEntryBox(ctk.CTkFrame):
-    def __init__(self, master, txt, width=890, height=120, **kwargs):
+    def __init__(self, master, txt, width=890, height=120, is_password=False,**kwargs):
         super().__init__(master, width, height, **kwargs)
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -11,6 +11,8 @@ class CustomEntryBox(ctk.CTkFrame):
                                       placeholder_text_color=GCP.get_blue_white(), placeholder_text=txt,
                                       font=GCP.get_font(64)
                                       , text_color=GCP.get_black(), border_width=0)
+        if is_password:
+            self.entry_box.configure(show="*")
         self.entry_box.grid(row=0, column=0, sticky="new")
 
     def get_val(self):
@@ -30,8 +32,9 @@ class FormFrame(ctk.CTkFrame):
             formNameLabel.grid(row=0, column=0, padx=0, pady=(50, 100), sticky="new")
         for i, v in enumerate(values):
             self.columnconfigure(i, weight=1)
-
             c = CustomEntryBox(self, v, width=890, height=120, fg_color="transparent")
+            if v == "Password":
+                c = CustomEntryBox(self, v, width=890, height=120, is_password=True, fg_color="transparent")
             c.grid(padx=0, pady=(0, 50))
             self.entries.append(c)
 

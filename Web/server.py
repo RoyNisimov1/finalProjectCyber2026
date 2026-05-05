@@ -82,7 +82,7 @@ class Server:
         #Initial setup
         sqlcmd = """CREATE TABLE users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        userName VARCHAR(10),
+        userName VARCHAR(20),
         isAdmin INTEGER DEFAULT 0 CHECK (isAdmin IN (0, 1)),
         passwordHash VARCHAR(64),
         salt BLOB,
@@ -146,7 +146,6 @@ class Server:
             userData = cursor.fetchone()
             if userData is None:
                 return False
-
             data = Protocol.recv_command(connection.soc, key=shared_private_key, verifyKey=connection.publicKey)
             if not data or not data.get("VERIFIED"):
                 return False
@@ -207,6 +206,7 @@ class Server:
                 success = self.sign_up(conn_client, shared_private_key)
                 Protocol.send_command(conn, shared_private_key, self.key_pair, signup_success=success)
                 self.kick_client(conn_client, "Signup done")
+                return
 
             if purpose == Protocol.LOGGING_IN:
                 success = self.log_in(conn_client, shared_private_key)
@@ -238,7 +238,7 @@ class Server:
                         if conn_client.isAdmin:
                             msg += "@"
                         msg += conn_client.userID + ": " + data["MSG"]
-                        Protocol.broadcast(msg, self.connections, key=self.ENCKey)
+                        Protocol.broadcast(msg, self.connections, key=self.ENCKey, signKey=self.key_pair, message_data=data["MSG"], date=time_now, author=conn_client.userID)
                     if command == Protocol.APPOINT_MANAGER:
                         if not conn_client.isAdmin: continue
                         user = self.get_connection_by_id(data["USERID"])

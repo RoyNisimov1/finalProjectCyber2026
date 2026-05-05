@@ -28,7 +28,6 @@ class Client:
                 method = Protocol.LOGGING_IN
             handshake_data = self.handshake(id, method)
             if method == Protocol.SIGNUP:
-                print(handshake_data)
                 self.disconnect()
                 return
             listenThread = Thread(target=self.listen)
@@ -63,6 +62,7 @@ class Client:
                         Protocol.send_command(self.sock, key=self.ENCKey, COMMAND=Protocol.GIDEON, PROMPT=prompt, signKey=self.key_pair)
                 except Exception as e:
                     ...
+
     def listen(self):
         while not self.disconnectB:
             try:

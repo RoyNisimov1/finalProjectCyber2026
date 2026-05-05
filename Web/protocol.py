@@ -120,10 +120,10 @@ class Protocol:
         return s
 
     @staticmethod
-    def broadcast(msg, clients: set, key=b""):
+    def broadcast(msg, clients: set, key=b"", signKey=None, **kwargs):
         for client in clients:
             try:
-                Protocol.send_command(client.soc, key=key, MSG=msg, COMMAND=Protocol.BROADCAST)
+                Protocol.send_command(client.soc, key=key,  signKey=signKey, MSG=msg, COMMAND=Protocol.BROADCAST,**kwargs)
             except Exception as e:
                 print(e)
 
