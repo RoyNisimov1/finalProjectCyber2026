@@ -147,7 +147,6 @@ class APP(ctk.CTk):
             try:
                 data = Protocol.recv_command(self.sock, key=self.ENCKey, verifyKey=self.server_public_key)
                 if not data["VERIFIED"]: continue
-                print(data)
                 if data["COMMAND"] == Protocol.BROADCAST:
                     self.main_page.get_msg_holder_box().add_msg(Message(author=data["author"], date=data["date"], text=data["message_data"], isAdmin=data["is_admin"]))
 

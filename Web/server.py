@@ -7,7 +7,7 @@ from datetime import datetime
 import sqlite3
 from secrets import token_bytes
 from hashlib import scrypt
-
+import atexit
 #AI
 from AI.Gemini import GideonGeminiBackEnd
 
@@ -30,7 +30,6 @@ class Server:
         self.key_pair = ECKey.new(Protocol.CURVE)
 
         self.ENCKey = AESWrapper.generate_key()
-
 
 
         self.thread_data = local()
@@ -74,6 +73,10 @@ class Server:
                             print(e)
         except Exception as e:
             print(e)
+        finally:
+            print("end")
+            self.get_db_connection().close()
+
 
     def set_up_dbserver(self):
 
@@ -192,6 +195,12 @@ class Server:
         return conn_client, shared_key, None
 
     def isManager(self, user_id):
+        # db = self.get_db_connection()
+        # dbcursor = db.cursor()
+        # dbcursor.execute("SELECT 1 FROM users WHERE username = ?", (user_id,))
+        # userData = dbcursor.fetchone()
+        # return userData[2] == 1
+
         return user_id in self.managers
 
     def handle_client(self, conn: socket.socket, address):
@@ -268,11 +277,13 @@ class Server:
                             if _conn.isAdmin: mangs.append(_conn.userID)
                             else: usrs.append(_conn.userID)
                         d = "----------------------\nAdmins:\n----------------------\n" + "\n".join(mangs) + "\n\n----------------------\nUsers:\n----------------------\n\n" + "\n".join(usrs)
-                        Protocol.send_command(conn_client.soc, key=self.ENCKey, signKey=self.key_pair, COMMAND=Protocol.PRIVATE, MSG=d)
+                        print(d)
+                        Protocol.send_command(conn_client.soc, key=self.ENCKey, signKey=self.key_pair, COMMAND=Protocol.PRIVATE, MSG=d, author="SERVER", date=datetime.now().strftime("%H:%M"), is_admin=True)
                     if command == Protocol.GIDEON:
                         prompt = data["PROMPT"]
                         response_ai = self.GIDEON.prompt(prompt)
-                        Protocol.send_command(conn_client.soc, key=self.ENCKey, signKey=self.key_pair, COMMAND=Protocol.PRIVATE, MSG=response_ai, author="GIDEON", date=datetime.now().strftime("%H:%M"))
+                        print(response_ai)
+                        Protocol.send_command(conn_client.soc, key=self.ENCKey, signKey=self.key_pair, COMMAND=Protocol.PRIVATE, MSG=response_ai, author="GIDEON", date=datetime.now().strftime("%H:%M"), is_admin=True)
                 except ConnectionError as e:
                     self.close_connection(conn_client)
                 except WindowsError as e:
@@ -281,8 +292,7 @@ class Server:
                     print(e)
         except Exception as _:
             conn.close()
-        finally:
-            self.get_db_connection().close()
+
 
     def promote_to_admin(self, user_id: str):
         db = self.get_db_connection()
