@@ -277,12 +277,10 @@ class Server:
                             if _conn.isAdmin: mangs.append(_conn.userID)
                             else: usrs.append(_conn.userID)
                         d = "----------------------\nAdmins:\n----------------------\n" + "\n".join(mangs) + "\n\n----------------------\nUsers:\n----------------------\n\n" + "\n".join(usrs)
-                        print(d)
                         Protocol.send_command(conn_client.soc, key=self.ENCKey, signKey=self.key_pair, COMMAND=Protocol.PRIVATE, MSG=d, author="SERVER", date=datetime.now().strftime("%H:%M"), is_admin=True)
                     if command == Protocol.GIDEON:
                         prompt = data["PROMPT"]
                         response_ai = self.GIDEON.prompt(prompt)
-                        print(response_ai)
                         Protocol.send_command(conn_client.soc, key=self.ENCKey, signKey=self.key_pair, COMMAND=Protocol.PRIVATE, MSG=response_ai, author="GIDEON", date=datetime.now().strftime("%H:%M"), is_admin=True)
                 except ConnectionError as e:
                     self.close_connection(conn_client)

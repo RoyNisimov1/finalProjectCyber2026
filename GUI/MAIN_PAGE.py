@@ -20,6 +20,7 @@ class MessageContainer(ctk.CTkFrame):
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(0, weight=1)
+        # self.grid_columnconfigure(1, weight=1)
         color = GCP.get_black()
         if message.isAdmin:
             color = GCP.get_yellow()
@@ -31,13 +32,12 @@ class MessageContainer(ctk.CTkFrame):
             color = GCP.get_yellow()
         self.text_box = ctk.CTkTextbox(self, fg_color=color,
                                        corner_radius=50,
-                                       text_color=GCP.get_white(), font=GCP.get_font(48))
+                                       text_color=GCP.get_white(), font=GCP.get_font(48), activate_scrollbars=True, height=300)
         self.text_box.insert("0.0", message.text)
         self.text_box.configure(state="disabled")
         self.text_box.grid(row=1, column=0, sticky="nsew")
 
 class MessagesHolderBox(ctk.CTkScrollableFrame):
-
     def __init__(self, master):
         super().__init__(master, corner_radius=50, fg_color=GCP.get_green(), scrollbar_button_color=GCP.get_yellow(),
                          scrollbar_button_hover_color=GCP.get_white())
@@ -45,13 +45,11 @@ class MessagesHolderBox(ctk.CTkScrollableFrame):
         self.mgs_ctr = []
         self.update_msg()
 
-
-
-
     def update_msg(self):
         self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=4)
+        self.grid_columnconfigure(1, weight=1)
         for i, msg in enumerate(self.messages):
+            self.grid_rowconfigure(i, weight=1)
             mc = MessageContainer(self, msg)
             mc.grid(row=i, column=0, sticky="nsew", pady=10)
             self.mgs_ctr.append(mc)
@@ -59,6 +57,8 @@ class MessagesHolderBox(ctk.CTkScrollableFrame):
     def add_msg(self, message: Message):
         try:
             self.messages.append(message)
+            self.grid_rowconfigure(len(self.messages), weight=1)
+
             mc = MessageContainer(self, message)
             mc.grid(row=len(self.messages), column=0, sticky="nsew", pady=10)
             self.mgs_ctr.append(mc)
