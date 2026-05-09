@@ -19,7 +19,7 @@ class CustomEntryBox(ctk.CTkFrame):
         return self.entry_box.get()
 
 
-class FormFrame(ctk.CTkFrame):
+class FormFrame(ctk.CTkScrollableFrame):
 
     def __init__(self, master, values, submit_btn_text, submit_btn_callback_func, after_btn = None, form_label="", **kwargs):
         super().__init__(master, **kwargs)

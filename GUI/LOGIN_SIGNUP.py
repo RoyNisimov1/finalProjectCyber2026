@@ -25,7 +25,7 @@ class LoginSignupPage(ctk.CTkFrame):
                                      fg_color=GCP.get_yellow(),
                                      after_btn=("Already have an account? Log in", self.change_to_login),
                                      width=50, height=1080)
-        self.signupframe.grid_propagate(False)
+        #self.signupframe.grid_propagate(False)
         self.signupframe.grid(row=0, column=0, sticky="nsew")
 
         self.loginframe = FormFrame(self.rightSideFrame, ["Username", "Password"], "Log me in!",
@@ -34,7 +34,7 @@ class LoginSignupPage(ctk.CTkFrame):
                                     fg_color=GCP.get_yellow(),
                                     after_btn=("Don't have an account? Sign up!", self.change_to_signup),
                                     width=50, height=1080)
-        self.loginframe.grid_propagate(False)
+        #self.loginframe.grid_propagate(False)
         #self.loginframe.grid(row=0, column=0, sticky="nsew")
 
         self.leftSideFrame = ctk.CTkFrame(self, fg_color="transparent")

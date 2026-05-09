@@ -1,4 +1,8 @@
+import sys
 
+if sys.platform == "win32":
+    from ctypes import windll
+    windll.shcore.SetProcessDpiAwareness(1)
 import customtkinter as ctk
 from LOGIN_SIGNUP import LoginSignupPage
 from MAIN_PAGE import MainPage, Message
@@ -71,7 +75,7 @@ class APP(ctk.CTk):
 
             # GUI
             self.title("Cloak Client")
-            self.geometry("1920x1080")
+            self.geometry("1000x900")
             self.attributes("-fullscreen", True)
             self.bind("<Escape>", lambda event: app.attributes("-fullscreen", False))
             self.configure(fg_color="#110B11")
